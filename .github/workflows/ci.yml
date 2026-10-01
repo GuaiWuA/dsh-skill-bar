@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: artifact gate + behaviour test (node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # The package ships no runtime dependency; react/react-dom exist only so the
+      # offline behaviour test can render the components.
+      - name: Install test dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Artifact gate
+        run: node build.mjs --check
+
+      - name: Behaviour test
+        run: node smoke-test.mjs
+
+      - name: Package contents match the manifest
+        run: node build.mjs --check

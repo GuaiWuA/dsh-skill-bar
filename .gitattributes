@@ -1,0 +1,4 @@
+# Keep the committed bytes stable across platforms: the client bundle is shipped
+# as-is and a CRLF rewrite would change every revision the Host sees.
+* text=auto eol=lf
+*.png binary
