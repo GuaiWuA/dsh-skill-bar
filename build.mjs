@@ -17,7 +17,7 @@
  *
  * Usage: node build.mjs [--check]   (--check prints the report and never writes)
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -89,6 +89,18 @@ for (const region of EXPECTED_REGIONS) {
 
 // 5. The generated marker must not survive into the artifact by accident.
 check('no source-map trailer', !source.includes('sourceMappingURL'));
+
+// 6. What npm would publish: `files` must name real files, and the client bundle
+//    must be committed, because consumers mount it as one artifact.
+const packed = manifest.files ?? [];
+check('manifest lists the files to publish', packed.length > 0);
+for (const entry of packed) {
+  const target = join(here, entry);
+  const isDirectory = entry.endsWith('/');
+  check(`packed ${entry}`, isDirectory ? existsSync(target) : existsSync(target), 'missing on disk');
+}
+check('the client bundle is committed', existsSync(join(here, manifest.exports?.['./client']?.default ?? '')), 'lib/client.js must be committed to the repository');
+check('no private flag on a publishable package', manifest.private !== true);
 
 console.log(`bundle: ${BUNDLE}`);
 console.log(`bytes:  ${Buffer.byteLength(source)}`);

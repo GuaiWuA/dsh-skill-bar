@@ -35,5 +35,7 @@ jobs:
       - name: Behaviour test
         run: node smoke-test.mjs
 
-      - name: Package contents match the manifest
-        run: node build.mjs --check
+      # Proves the published tarball carries the client bundle and nothing the
+      # runtime would need but the manifest forgot to list.
+      - name: Package dry run
+        run: npm pack --dry-run
