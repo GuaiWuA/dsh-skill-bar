@@ -1,7 +1,7 @@
 {
   "name": "dsh-client-ui-skill-bar",
   "version": "0.1.0",
-  "description": "Game-style skill bar for the DSH web GUI: browse the session skill catalog, keep favorites, and cast a skill into the composer as /<name>",
+  "description": "Skill bar for the DSH web GUI: every user-invocable skill of the session as a card you can search, favorite, and cast into the composer as /<name>",
   "keywords": [
     "dsh",
     "deepseek-harness",
@@ -12,6 +12,14 @@
     "skills",
     "web-ui"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/<you>/dsh-skill-bar.git"
+  },
+  "homepage": "https://github.com/<you>/dsh-skill-bar#readme",
+  "bugs": {
+    "url": "https://github.com/<you>/dsh-skill-bar/issues"
+  },
   "license": "MIT",
   "type": "module",
   "engines": {
