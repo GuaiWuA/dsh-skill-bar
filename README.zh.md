@@ -41,7 +41,7 @@
 ### 1. 取代码
 
 ```sh
-git clone https://github.com/<you>/dsh-skill-bar.git
+git clone https://github.com/GuaiWuA/dsh-skill-bar.git
 ```
 
 或者 `npm install dsh-client-ui-skill-bar` 后用包标识符挂载。

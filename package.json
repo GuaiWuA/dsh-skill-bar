@@ -14,11 +14,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/<you>/dsh-skill-bar.git"
+    "url": "git+https://github.com/GuaiWuA/dsh-skill-bar.git"
   },
-  "homepage": "https://github.com/<you>/dsh-skill-bar#readme",
+  "homepage": "https://github.com/GuaiWuA/dsh-skill-bar#readme",
   "bugs": {
-    "url": "https://github.com/<you>/dsh-skill-bar/issues"
+    "url": "https://github.com/GuaiWuA/dsh-skill-bar/issues"
   },
   "license": "MIT",
   "type": "module",

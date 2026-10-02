@@ -27,5 +27,5 @@ First release.
 - Artifact gate (`build.mjs`) and two test layers: an offline behaviour test and
   a CDP-driven real-page verification.
 
-[Unreleased]: https://github.com/<you>/dsh-skill-bar/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/<you>/dsh-skill-bar/releases/tag/v0.1.0
+[Unreleased]: https://github.com/GuaiWuA/dsh-skill-bar/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/GuaiWuA/dsh-skill-bar/releases/tag/v0.1.0

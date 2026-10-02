@@ -41,7 +41,7 @@ The plugin is an ordinary npm package mounted through a profile's Loader patch, 
 ### 1. Get the code
 
 ```sh
-git clone https://github.com/<you>/dsh-skill-bar.git
+git clone https://github.com/GuaiWuA/dsh-skill-bar.git
 ```
 
 Or `npm install dsh-client-ui-skill-bar` and mount it by package specifier.
