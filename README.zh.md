@@ -31,7 +31,7 @@
 
 - 面向 DSH Web 表层（桌面应用、`web` profile）。纯客户端插件。
 - 运行期只 require `react` 和 `react/jsx-runtime`。图标是仓库里自绘的内联 SVG，不依赖任何内部 SDK 包；没有 CSS 构建，没有打包器。
-- 在 DSH `0.2.0-rc.2` 上验证过（Electron 桌面端与 `dsh web`）。
+- 在 DSH `0.2.0-rc.2` 上验证过（Electron 桌面端与 `dsh web`）；该版本同时记在 `package.json` 的 `dsh.verifiedAgainst` 里——因为 DSH 目前还是 RC，slot 名字可能变。
 - 用到的宿主接口：`skills/list` Remote、`conversation.input.left` / `conversation.input.dock` 两个 slot、slot props 里的 `inputActions` 和 `useInput`。这四个名字是它唯一的升级风险点；一旦改名，失败是收敛的——面板里显示目录读取错误，不会让输入框坏掉。
 
 ## 安装
@@ -44,7 +44,14 @@
 git clone https://github.com/GuaiWuA/dsh-skill-bar.git
 ```
 
-或者 `npm install dsh-client-ui-skill-bar` 后用包标识符挂载。
+或者装进 profile（这样包才能从 profile 里被解析到）：
+
+```sh
+cd "$DSH_HOME/profiles/<profile>"
+npm install dsh-client-ui-skill-bar      # 或：npm install github:GuaiWuA/dsh-skill-bar
+```
+
+两者运行效果一样：clone 的好处是源码就在你手边、可直接改；装进 profile 则是放进 loader 本来就会找的 `node_modules`。
 
 ### 2. 在 profile 里加一行
 
@@ -62,7 +69,15 @@ git clone https://github.com/GuaiWuA/dsh-skill-bar.git
           skill-creator: 创建技能
 ```
 
-`name` 要指向**入口文件**，不能给目录。patch 的 insert 名称会被当作 ES module 直接 import，Node 不接受目录导入（`ERR_UNSUPPORTED_DIR_IMPORT`）。绝对路径会由补丁加载器转成 file URL；包能从 profile 解析到时，写包标识符也可以。
+`name` 要指向**入口文件**，不能给目录。patch 的 insert 名称会被当作 ES module 直接 import，Node 不接受目录导入（`ERR_UNSUPPORTED_DIR_IMPORT`）。绝对路径会由补丁加载器转成 file URL。
+
+如果用 npm 装的，则写**包根名**，不要带子路径：
+
+```yaml
+      name: 'dsh-client-ui-skill-bar'
+```
+
+带子路径不行：`dsh-client-ui-skill-bar/lib/index.js` 和 `dsh-client-ui-skill-bar/client` 都会 `failed to import`——只有当整行恰好指向一个完整包时，宿主才会去扫它的 `dsh.client` 声明。除了这条，按路径挂载和按包名挂载等价。
 
 ### 3. 重启应用
 
@@ -152,12 +167,13 @@ DSH_REACT_DIR=/path/to/dsh/profiles/node_modules npm test
 这些每一条都真实花过时间，写下来省得下一个人再踩。
 
 1. **patch 的 `insert.name` 是 ES module 说明符**，指向入口文件而不是目录，否则 `ERR_UNSUPPORTED_DIR_IMPORT`。
-2. **bundle 注册的 `id` 必须等于宿主解析出的包名**。按路径挂载时这个包名取**目录名**，不是你想要的 npm scope；不一致会报 `loaded without registering "<id>" via __ModuleLoader__.load`。
+2. **整行指向包时，必须恰好是包根名。** `dsh-client-ui-skill-bar/lib/index.js` 和 `dsh-client-ui-skill-bar/client` 作为 Node 说明符都合法，但作为**行名**会导入失败：只有整行解析成一个完整包时，宿主才会去扫它的 `dsh.client` 声明。包名还必须等于插件被解析出来的目录名，因为那个目录名就是 boot 图查找的模块 id；不一致会报 `loaded without registering "<id>" via __ModuleLoader__.load`。
 3. **Cordis 4 里 `ctx.config` 不是普通属性**。没有声明式注入时读它会抛 `cannot get property "config" without inject`，要放在 try/catch 里并回退默认值。
 4. **带 hooks 的组件不要在渲染中 `return null`**。宿主会把这种形态变成打开面板时的 React hook 状态错误（#310）。拆两层：外层只订阅 open 标志并返回 `null`，正文组件真实挂载和卸载。
 5. **不要在 effect 里往本组件订阅的 store 同步发布**，那会落在 React 提交阶段。用 `queueMicrotask` 延后一拍。
 6. **用直接写 DOM 的方式做跟随效果会被 React 覆盖**。拖动浮标最初用 `node.style.transform` 改位置，下一次提交就把它抹掉了，表现为浮标出现但不跟手。位置交给 state。
 7. **主题变量要先确认存在**。不存在的变量会静默解析成 `unset`，在深色主题下就是浅色背景上的浅色文字。`0.2.0-rc.2` 里没有 `--dsw-alias-bg-l1/l2/l3`，选中态用边框色表达更稳。
+8. **不要在 bundle 里 require Cordis**。`ctx` 是宿主给的；import 这个包不会用到，却会带来一个安装期依赖（以及一个以后可能让安装失败的 peer 范围）。
 
 ## 已知限制
 

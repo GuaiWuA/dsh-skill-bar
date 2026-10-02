@@ -10,10 +10,12 @@
  *
  *   1. the bundle parses as a script (it is loaded as a classic script);
  *   2. it registers exactly the module id the Host resolves for this package;
- *   3. every `require()` it makes is in the allowlist of modules the client
- *      module graph provides — no undeclared or internal-SDK imports;
- *   4. the marked regions this package documents are present;
- *   5. the package manifest still declares the browser half and its services.
+ *   3. its `require()` calls are exactly `react` + `react/jsx-runtime` — no
+ *      undeclared, unused or internal-SDK imports;
+ *   4. the context services it injects are the documented set;
+ *   5. the marked regions this package documents are present;
+ *   6. the manifest declares the browser half, carries no dependency the plugin
+ *      does not need, and publishes only files that exist.
  *
  * Usage: node build.mjs [--check]   (--check prints the report and never writes)
  */
@@ -30,6 +32,23 @@ const ALLOWED_REQUIRES = new Set([
   'react/jsx-runtime',
   '@deepseek-ai/cordis'
 ]);
+/** Requires the bundle is expected to make; extra ones are reported. */
+const EXPECTED_REQUIRES = [
+  'react',
+  'react/jsx-runtime'
+];
+/**
+ * The services the plugin consumes from the context. They are declared in the
+ * package manifest as `dsh.client.inject`, not as an import: nothing in the
+ * bundle may require the package that provides them.
+ */
+const EXPECTED_SERVICES = [
+  'slots',
+  'locale',
+  'sessions',
+  'remote',
+  'remote.skills'
+];
 
 /** Regions the bundle is expected to carry, in order. */
 const EXPECTED_REGIONS = [
@@ -75,32 +94,50 @@ check('bundle registers the package name', source.includes(`id: ${JSON.stringify
 check('manifest declares the web client half', manifest.dsh?.client?.platform === 'web');
 check('manifest declares the client bundle export', manifest.exports?.['./client']?.default === './lib/client.js');
 
-// 3. Dependency surface. Every require must be provided by the module graph.
+// 3. Dependency surface. Every require must be provided by the module graph, and
+//    the set must be exactly the expected one: an extra require is either an
+//    undeclared dependency or a package the plugin never actually uses.
 const requires = [...source.matchAll(/require\(\s*"([^"]+)"\s*\)/g)].map((match) => match[1]);
-const unexpected = [...new Set(requires)].filter((name) => !ALLOWED_REQUIRES.has(name));
+const uniqueRequires = [...new Set(requires)];
+const unexpected = uniqueRequires.filter((name) => !ALLOWED_REQUIRES.has(name));
+const missing = EXPECTED_REQUIRES.filter((name) => !uniqueRequires.includes(name));
+const extra = uniqueRequires.filter((name) => !EXPECTED_REQUIRES.includes(name));
 check('every require is provided by the module graph', unexpected.length === 0, unexpected.join(', '));
-check('runtime dependency surface is react + cordis only', requires.length > 0, 'no require() calls found');
-for (const name of new Set(requires)) notes.push(`info require: ${name}`);
+check('no require beyond react', extra.length === 0, `unexpected: ${extra.join(', ')}`);
+check('react and its jsx runtime are required', missing.length === 0, `missing: ${missing.join(', ')}`);
+for (const name of uniqueRequires) notes.push(`info require: ${name}`);
 
-// 4. Documented regions.
+// 4. The declared context services must match what apply() actually injects.
+const injectMatch = /const inject = \[([\s\S]*?)\]/.exec(source);
+const declaredServices = injectMatch === null
+  ? []
+  : [...injectMatch[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+check('the plugin declares its context services', declaredServices.length > 0, 'no inject array found');
+check('declared services match the documented set', EXPECTED_SERVICES.every((name) => declaredServices.includes(name)) && declaredServices.length === EXPECTED_SERVICES.length, `got ${declaredServices.join(', ')}`);
+for (const name of declaredServices) notes.push(`info service: ${name}`);
+
+// 5. Documented regions.
 for (const region of EXPECTED_REGIONS) {
   check(`region ${region}`, source.includes(`//#region ${region}`));
 }
 
-// 5. The generated marker must not survive into the artifact by accident.
+// 6. The generated marker must not survive into the artifact by accident.
 check('no source-map trailer', !source.includes('sourceMappingURL'));
 
-// 6. What npm would publish: `files` must name real files, and the client bundle
-//    must be committed, because consumers mount it as one artifact.
+// 7. Packaging: `files` must name real files, the client bundle must be
+//    committed, and no peer dependency may turn the install into a constraint
+//    the plugin does not need.
 const packed = manifest.files ?? [];
 check('manifest lists the files to publish', packed.length > 0);
 for (const entry of packed) {
   const target = join(here, entry);
-  const isDirectory = entry.endsWith('/');
-  check(`packed ${entry}`, isDirectory ? existsSync(target) : existsSync(target), 'missing on disk');
+  check(`packed ${entry}`, existsSync(target), 'missing on disk');
 }
 check('the client bundle is committed', existsSync(join(here, manifest.exports?.['./client']?.default ?? '')), 'lib/client.js must be committed to the repository');
 check('no private flag on a publishable package', manifest.private !== true);
+check('no peer dependencies', manifest.peerDependencies === undefined, JSON.stringify(manifest.peerDependencies ?? {}));
+check('no runtime dependencies', manifest.dependencies === undefined, JSON.stringify(manifest.dependencies ?? {}));
+check('the verified DSH version is recorded', typeof manifest.dsh?.verifiedAgainst === 'string' && manifest.dsh.verifiedAgainst.length > 0);
 
 console.log(`bundle: ${BUNDLE}`);
 console.log(`bytes:  ${Buffer.byteLength(source)}`);

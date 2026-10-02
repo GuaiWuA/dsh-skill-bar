@@ -31,20 +31,29 @@ Favorites, recents and sent counts live in the browser's `localStorage`. They af
 
 - DSH web surface (the desktop app and the `web` profile). Client-only.
 - Requires `react` and `react/jsx-runtime` at runtime, nothing else. The icons are inline SVG owned by this repo, so no internal SDK package is involved. No CSS build, no bundler.
-- Verified against DSH `0.2.0-rc.2` on both the Electron desktop app and `dsh web`.
+- Verified against DSH `0.2.0-rc.2` on both the Electron desktop app and `dsh web`; that version is also recorded in `package.json` under `dsh.verifiedAgainst`, because it is a release candidate and the slot names can move.
 - Host interfaces it uses: the `skills/list` Remote, the `conversation.input.left` and `conversation.input.dock` slots, and the `inputActions` / `useInput` slot props. Those four names are the only real upgrade risk. If one is renamed, failure is contained: the panel reports a catalog read error and the composer keeps working.
 
 ## Install
 
-The plugin is an ordinary npm package mounted through a profile's Loader patch, the same path DSH's own UI plugins take.
+The plugin is an ordinary npm package mounted through a profile's Loader patch, the same path DSH's own UI plugins take. Installing it does nothing on its own: step 2 is what activates it.
 
 ### 1. Get the code
+
+Either clone it:
 
 ```sh
 git clone https://github.com/GuaiWuA/dsh-skill-bar.git
 ```
 
-Or `npm install dsh-client-ui-skill-bar` and mount it by package specifier.
+Or install it into the profile, which is what makes the package resolvable from the profile:
+
+```sh
+cd "$DSH_HOME/profiles/<profile>"
+npm install dsh-client-ui-skill-bar      # or: npm install github:GuaiWuA/dsh-skill-bar
+```
+
+Both are equivalent at runtime. Cloning keeps the source editable next to your other work; installing puts it in the profile's `node_modules`, where the loader already looks.
 
 ### 2. Add one row to your profile
 
@@ -62,7 +71,15 @@ Edit `$DSH_HOME/profiles/<profile>/cordis.patch.yml` (`%USERPROFILE%\.dsh\profil
           skill-creator: Create a skill
 ```
 
-`name` must point at the **entry file**, not the directory. A patch insert name is imported as an ES module and Node rejects directory imports (`ERR_UNSUPPORTED_DIR_IMPORT`). The patch loader turns an absolute path into a file URL; a bare package specifier also works when the package resolves from the profile.
+`name` must point at the **entry file**, not the directory. A patch insert name is imported as an ES module and Node rejects directory imports (`ERR_UNSUPPORTED_DIR_IMPORT`). The patch loader turns an absolute path into a file URL.
+
+Installed through npm instead? Then use the **package root name**, nothing longer:
+
+```yaml
+      name: 'dsh-client-ui-skill-bar'
+```
+
+A subpath does not work: `dsh-client-ui-skill-bar/lib/index.js` and `dsh-client-ui-skill-bar/client` both fail with `failed to import`, because the package's `dsh.client` declaration is only scanned when the row names exactly one package. Mounting by path and mounting by package name are otherwise equivalent.
 
 ### 3. Restart the app
 
@@ -153,12 +170,13 @@ What each file is for:
 Each of these cost real debugging time.
 
 1. **A patch `insert.name` is an ES module specifier.** Point it at the entry file, never the directory, or you get `ERR_UNSUPPORTED_DIR_IMPORT`.
-2. **The bundle's registered `id` must equal the package name the Host resolves.** Mounted by path, that name is the **directory name**, not the npm scope you may have intended. A mismatch fails with `loaded without registering "<id>" via __ModuleLoader__.load`.
+2. **A row that names a package must name exactly the package root.** `dsh-client-ui-skill-bar/lib/index.js` and `dsh-client-ui-skill-bar/client` are both valid Node specifiers for this package, but as a *row name* they fail to import: the Host scans a package's `dsh.client` declaration only when the row resolves to one whole package. The package name must also equal the directory name the plugin is resolved from, because that directory name is the module id the boot graph looks up. A mismatch fails with `loaded without registering "<id>" via __ModuleLoader__.load`.
 3. **`ctx.config` is not a plain property in Cordis 4.** Reading it without the declarative inject throws `cannot get property "config" without inject`. Read it behind a try/catch and fall back to defaults.
 4. **A component with hooks must not `return null` mid-render.** The slot host turns that shape into a React hook-state error (#310) when the panel first opens. Split it: an outer seat that subscribes to the open flag and returns `null`, plus a body component that mounts and unmounts for real.
 5. **Do not publish to a store the same component subscribes to from inside an effect.** It lands in React's commit phase; defer it one microtask.
 6. **A follow-me effect written as a direct DOM style mutation gets overwritten.** The drag ghost originally set `node.style.transform`; the next React commit wiped it, so the ghost appeared but never followed the pointer. Keep the position in state.
 7. **Confirm theme tokens exist before using them.** An unknown token resolves to `unset` silently, which in a dark theme is light text on a light background. `0.2.0-rc.2` has no `--dsw-alias-bg-l1/l2/l3`; carry selection with border color instead.
+8. **Do not require Cordis in the bundle.** The plugin receives `ctx` from the host; importing the package adds an install-time dependency (and a peer range that can break installs later) without being used.
 
 ## Known limitations
 
